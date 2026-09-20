@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlockCode Editor</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#topbar {
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  background: white;
+  border-bottom: 1px solid #ddd;
+}
+
+#title {
+  font-size: 18px;
+  font-weight: bold;
+  margin-right: 20px;
+}
+
+.tab {
+  border: 0;
+  background: transparent;
+  padding: 10px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tab.active {
+  background: #eaf2ff;
+  color: #2563eb;
+}
+
+.panel {
+  display: none;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel.active {
+  display: flex;
+}
+
+#scriptsPanel {
+  position: relative;
+}
+
+#scriptsWorkspace {
+  position: absolute;
+  inset: 0;
+}
+
+#status {
+  position: absolute;
+  z-index: 20;
+  top: 10px;
+  right: 10px;
+  padding: 7px 10px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+#costumesPanel {
+  flex-direction: column;
+  background: #f5f5f5;
+}
+
+#costumeToolbar {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  background: white;
+  border-bottom: 1px solid #ddd;
+  overflow-x: auto;
+}
+
+.tool {
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: white;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tool.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+#costumeArea {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+#costumeSide {
+  width: 190px;
+  padding: 10px;
+  background: white;
+  border-right: 1px solid #ddd;
+  overflow-y: auto;
+}
+
+#newCostume {
+  width: 100%;
+  padding: 9px;
+  cursor: pointer;
+}
+
+#costumeList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.costumeItem {
+  padding: 6px;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.costumeItem.selected {
+  border: 2px solid #2563eb;
+}
+
+.costumeItem img {
+  width: 100%;
+  height: 80px;
+  object-fit: contain;
+  background: #eee;
+}
+
+#canvasArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  overflow: auto;
+  background:
+    linear-gradient(45deg, #eee 25%, transparent 25%),
+    linear-gradient(-45deg, #eee 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #eee 75%),
+    linear-gradient(-45deg, transparent 75%, #eee 75%);
+  background-size: 20px 20px;
+}
+
+#costumeCanvas {
+  width: 480px;
+  height: 360px;
+  background: white;
+  box-shadow: 0 2px 10px #aaa;
+  touch-action: none;
+}
+
+#soundsPanel {
+  padding: 20px;
+  background: #f7f7f7;
+  flex-direction: column;
+}
+
+#soundList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.soundItem {
+  padding: 10px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="topbar">
+  <div id="title">BlockCode Editor</div>
+
+  <button class="tab active" data-panel="scriptsPanel">
+    Scripts
+  </button>
+
+  <button class="tab" data-panel="costumesPanel">
+    Costumes
+  </button>
+
+  <button class="tab" data-panel="soundsPanel">
+    Sounds
+  </button>
+</div>
+
+<div id="scriptsPanel" class="panel active">
+
+  <div id="scriptsWorkspace"></div>
+
+  <div id="status">
+    Finding Codely...
+  </div>
+
+</div>
+
+<div id="costumesPanel" class="panel">
+
+  <div id="costumeToolbar">
+
+    <button class="tool active" data-tool="select">
+      Select
+    </button>
+
+    <button class="tool" data-tool="circle">
+      Circle
+    </button>
+
+    <button class="tool" data-tool="square">
+      Square
+    </button>
+
+    <button class="tool" data-tool="paint">
+      Paint
+    </button>
+
+    <button class="tool" data-tool="erase">
+      Erase
+    </button>
+
+    <button class="tool" data-tool="triangle">
+      Triangle
+    </button>
+
+    <button class="tool" data-tool="delete">
+      Delete
+    </button>
+
+    <button class="tool" data-tool="point">
+      Point Selector
+    </button>
+
+    <button class="tool" data-tool="text">
+      Text
+    </button>
+
+    <input
+      id="imageUpload"
+      type="file"
+      accept="image/*"
+    >
+
+  </div>
+
+  <div id="costumeArea">
+
+    <div id="costumeSide">
+
+      <button id="newCostume">
+        + New Costume
+      </button>
+
+      <div id="costumeList"></div>
+
+    </div>
+
+    <div id="canvasArea">
+      <canvas
+        id="costumeCanvas"
+        width="480"
+        height="360">
+      </canvas>
+    </div>
+
+  </div>
+
+</div>
+
+<div id="soundsPanel" class="panel">
+
+  <input
+    id="soundUpload"
+    type="file"
+    accept="audio/*"
+  >
+
+  <div id="soundList"></div>
+
+</div>
+
+<script>
+/*
+  Codely is the block system.
+
+  The editor does NOT define the Blockly blocks itself.
+  It searches GitHub for a repository named "codely",
+  downloads its repository tree, finds Blockly-related
+  JavaScript files, and loads them.
+*/
+
+const statusBox = document.getElementById("status");
+
+let workspace = null;
+let codelyRepo = null;
+let codelyTree = null;
+
+const GITHUB_API =
+  "https://api.github.com";
+
+/* ---------------------------------------------------------
+   GitHub helpers
+   --------------------------------------------------------- */
+
+async function github(url) {
+
+  const response = await fetch(url, {
+    headers: {
+      "Accept": "application/vnd.github+json"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      "GitHub request failed: " +
+      response.status
+    );
+  }
+
+  return response.json();
+}
+
+
+/* ---------------------------------------------------------
+   Find Codely
+   --------------------------------------------------------- */
+
+async function findCodely() {
+
+  statusBox.textContent =
+    "Searching GitHub for Codely...";
+
+  /*
+    Search by repository name rather than assuming
+    a particular owner.
+  */
+
+  const result = await github(
+    GITHUB_API +
+    "/search/repositories?q=codely+in:name&per_page=30"
+  );
+
+  const repositories =
+    result.items || [];
+
+  /*
+    Prefer an exact repository named codely.
+  */
+
+  const exact =
+    repositories.find(repo =>
+      repo.name.toLowerCase() === "codely"
+    );
+
+  if (exact) {
+    return exact;
+  }
+
+  /*
+    Otherwise use the first repository whose name
+    contains Codely.
+  */
+
+  const similar =
+    repositories.find(repo =>
+      repo.name.toLowerCase().includes("codely")
+    );
+
+  return similar || null;
+}
+
+
+/* ---------------------------------------------------------
+   Get repository tree
+   --------------------------------------------------------- */
+
+async function getCodelyTree(repo) {
+
+  const branch =
+    repo.default_branch || "main";
+
+  return github(
+    GITHUB_API +
+    "/repos/" +
+    repo.full_name +
+    "/git/trees/" +
+    encodeURIComponent(branch) +
+    "?recursive=1"
+  );
+}
+
+
+/* ---------------------------------------------------------
+   Find useful JavaScript files
+   --------------------------------------------------------- */
+
+function findBlocklyFiles(tree) {
+
+  const files =
+    (tree.tree || []).filter(item =>
+      item.type === "blob"
+    );
+
+  return files.filter(file => {
+
+    const path =
+      file.path.toLowerCase();
+
+    if (!path.endsWith(".js")) {
+      return false;
+    }
+
+    return (
+      path.includes("block") ||
+      path.includes("codely") ||
+      path.includes("toolbox") ||
+      path.includes("workspace") ||
+      path.includes("editor")
+    );
+  });
+}
+
+
+/* ---------------------------------------------------------
+   Load Codely JavaScript
+   --------------------------------------------------------- */
+
+async function loadCodelyFile(repo, file) {
+
+  const url =
+    "https://raw.githubusercontent.com/" +
+    repo.full_name +
+    "/" +
+    encodeURIComponent(repo.default_branch || "main") +
+    "/" +
+    file.path;
+
+  const response =
+    await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      "Could not load " + file.path
+    );
+  }
+
+  const source =
+    await response.text();
+
+  /*
+    Execute the JavaScript from the Codely repository.
+
+    This allows Codely to register its own Blockly
+    block definitions instead of us recreating them.
+  */
+
+  const script =
+    document.createElement("script");
+
+  script.textContent = source;
+
+  document.head.appendChild(script);
+
+  return source;
+}
+
+
+/* ---------------------------------------------------------
+   Find Codely's Blockly implementation
+   --------------------------------------------------------- */
+
+async function loadCodely() {
+
+  try {
+
+    const repo =
+      await findCodely();
+
+    if (!repo) {
+
+      statusBox.textContent =
+        "Codely repository not found";
+
+      console.error(
+        "No repository named Codely was found."
+      );
+
+      return;
+    }
+
+    codelyRepo = repo;
+
+    statusBox.textContent =
+      "Found Codely: " +
+      repo.full_name;
+
+    /*
+      First load Blockly itself if Codely expects
+      the normal Blockly global.
+    */
+
+    if (!window.Blockly) {
+
+      const blocklyScript =
+        document.createElement("script");
+
+      blocklyScript.src =
+        "https://unpkg.com/blockly/blockly.min.js";
+
+      await new Promise((resolve, reject) => {
+
+        blocklyScript.onload = resolve;
+        blocklyScript.onerror = reject;
+
+        document.head.appendChild(
+          blocklyScript
+        );
+      });
+    }
+
+    codelyTree =
+      await getCodelyTree(repo);
+
+    const files =
+      findBlocklyFiles(codelyTree);
+
+    console.log(
+      "Codely repository:",
+      repo
+    );
+
+    console.log(
+      "Possible Codely Blockly files:",
+      files
+    );
+
+    /*
+      Load the discovered files.
+
+      Files containing block definitions are loaded first,
+      followed by toolbox/editor files.
+    */
+
+    const sortedFiles =
+      files.sort((a, b) => {
+
+        function score(file) {
+
+          const path =
+            file.path.toLowerCase();
+
+          let value = 0;
+
+          if (path.includes("block")) {
+            value -= 20;
+          }
+
+          if (path.includes("toolbox")) {
+            value -= 10;
+          }
+
+          if (path.includes("editor")) {
+            value -= 5;
+          }
+
+          return value;
+        }
+
+        return score(a) - score(b);
+      });
+
+    /*
+      Avoid blindly loading enormous repositories.
+      The first relevant files are enough for discovery.
+    */
+
+    for (const file of sortedFiles.slice(0, 30)) {
+
+      try {
+
+        await loadCodelyFile(
+          repo,
+          file
+        );
+
+      } catch (error) {
+
+        console.warn(
+          "Codely file skipped:",
+          file.path,
+          error
+        );
+      }
+    }
+
+    /*
+      Now create the workspace AFTER Codely has had
+      the opportunity to register its blocks.
+    */
+
+    createCodelyWorkspace();
+
+    statusBox.textContent =
+      "Codely loaded";
+
+  } catch (error) {
+
+    console.error(
+      "Codely loading error:",
+      error
+    );
+
+    statusBox.textContent =
+      "Codely failed to load";
+  }
+}
+
+
+/* ---------------------------------------------------------
+   Create workspace
+   --------------------------------------------------------- */
+
+function createCodelyWorkspace() {
+
+  if (!window.Blockly) {
+
+    statusBox.textContent =
+      "Blockly was not provided by Codely";
+
+    return;
+  }
+
+  /*
+    Build the toolbox from every block that Codely
+    registered.
+
+    This means we don't have to manually list
+    motion_movesteps, looks_say, etc.
+  */
+
+  const blockTypes =
+    Object.keys(
+      Blockly.Blocks || {}
+    ).filter(type => {
+
+      const block =
+        Blockly.Blocks[type];
+
+      return (
+        block &&
+        typeof block.init === "function"
+      );
+    });
+
+  console.log(
+    "Codely registered blocks:",
+    blockTypes
+  );
+
+  const xml =
+    document.createElementNS(
+      "https://developers.google.com/blockly/xml",
+      "xml"
+    );
+
+  const category =
+    document.createElementNS(
+      "https://developers.google.com/blockly/xml",
+      "category"
+    );
+
+  category.setAttribute(
+    "name",
+    "Codely"
+  );
+
+  category.setAttribute(
+    "colour",
+    "#4C97FF"
+  );
+
+  blockTypes.forEach(type => {
+
+    const block =
+      document.createElementNS(
+        "https://developers.google.com/blockly/xml",
+        "block"
+      );
+
+    block.setAttribute(
+      "type",
+      type
+    );
+
+    category.appendChild(block);
+  });
+
+  xml.appendChild(category);
+
+  workspace =
+    Blockly.inject(
+      "scriptsWorkspace",
+      {
+        toolbox: xml,
+
+        trashcan: true,
+
+        scrollbars: true,
+
+        move: {
+          scrollbars: true,
+          drag: true,
+          wheel: true
+        },
+
+        zoom: {
+          controls: true,
+          wheel: true,
+          startScale: 1,
+          maxScale: 2,
+          minScale: 0.5,
+          scaleSpeed: 1.1
+        },
+
+        grid: {
+          spacing: 20,
+          length: 3,
+          colour: "#ddd",
+          snap: true
+        }
+      }
+    );
+
+  Blockly.svgResize(
+    workspace
+  );
+}
+
+
+/* ---------------------------------------------------------
+   Resize Blockly
+   --------------------------------------------------------- */
+
+window.addEventListener(
+  "resize",
+  function() {
+
+    if (workspace) {
+      Blockly.svgResize(
+        workspace
+      );
+    }
+  }
+);
+
+
+/* ---------------------------------------------------------
+   Tabs
+   --------------------------------------------------------- */
+
+document
+  .querySelectorAll(".tab")
+  .forEach(button => {
+
+    button.addEventListener(
+      "click",
+      function() {
+
+        document
+          .querySelectorAll(".tab")
+          .forEach(tab =>
+            tab.classList.remove("active")
+          );
+
+        document
+          .querySelectorAll(".panel")
+          .forEach(panel =>
+            panel.classList.remove("active")
+          );
+
+        this.classList.add("active");
+
+        document
+          .getElementById(
+            this.dataset.panel
+          )
+          .classList.add("active");
+
+        if (
+          this.dataset.panel ===
+          "scriptsPanel"
+        ) {
+
+          setTimeout(
+            () => {
+
+              if (workspace) {
+                Blockly.svgResize(
+                  workspace
+                );
+              }
+
+            },
+            50
+          );
+        }
+      }
+    );
+  });
+
+
+/* ---------------------------------------------------------
+   Costume editor
+   --------------------------------------------------------- */
+
+const canvas =
+  document.getElementById(
+    "costumeCanvas"
+  );
+
+const ctx =
+  canvas.getContext("2d");
+
+let currentTool = "select";
+let drawing = false;
+
+let startX = 0;
+let startY = 0;
+let lastX = 0;
+let lastY = 0;
+
+let costumes = [
+  {
+    name: "Costume 1",
+    data: null
+  }
+];
+
+let currentCostume = 0;
+
+
+function clearCanvas() {
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  ctx.fillStyle = "white";
+
+  ctx.fillRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+}
+
+
+function saveCostume() {
+
+  costumes[currentCostume].data =
+    canvas.toDataURL();
+
+  renderCostumeList();
+}
+
+
+function loadCostume(index) {
+
+  currentCostume = index;
+
+  const image =
+    new Image();
+
+  image.onload = function() {
+
+    clearCanvas();
+
+    ctx.drawImage(
+      image,
+      0,
+      0
+    );
+  };
+
+  image.src =
+    costumes[index].data;
+
+  renderCostumeList();
+}
+
+
+function renderCostumeList() {
+
+  const list =
+    document.getElementById(
+      "costumeList"
+    );
+
+  list.innerHTML = "";
+
+  costumes.forEach(
+    (costume, index) => {
+
+      const item =
+        document.createElement(
+          "div"
+        );
+
+      item.className =
+        "costumeItem" +
+        (
+          index === currentCostume
+            ? " selected"
+            : ""
+        );
+
+      const img =
+        document.createElement(
+          "img"
+        );
+
+      img.src =
+        costume.data;
+
+      const label =
+        document.createElement(
+          "div"
+        );
+
+      label.textContent =
+        costume.name;
+
+      item.appendChild(img);
+      item.appendChild(label);
+
+      item.addEventListener(
+        "click",
+        function() {
+
+          saveCostume();
+
+          loadCostume(
+            index
+          );
+        }
+      );
+
+      list.appendChild(item);
+    }
+  );
+}
+
+
+document
+  .querySelectorAll(".tool")
+  .forEach(button => {
+
+    button.addEventListener(
+      "click",
+      function() {
+
+        document
+          .querySelectorAll(".tool")
+          .forEach(tool =>
+            tool.classList.remove("active")
+          );
+
+        this.classList.add("active");
+
+        currentTool =
+          this.dataset.tool;
+      }
+    );
+  });
+
+
+function mousePosition(event) {
+
+  const rect =
+    canvas.getBoundingClientRect();
+
+  return {
+    x:
+      (event.clientX - rect.left) *
+      (canvas.width / rect.width),
+
+    y:
+      (event.clientY - rect.top) *
+      (canvas.height / rect.height)
+  };
+}
+
+
+canvas.addEventListener(
+  "pointerdown",
+  function(event) {
+
+    const pos =
+      mousePosition(event);
+
+    startX = pos.x;
+    startY = pos.y;
+
+    lastX = pos.x;
+    lastY = pos.y;
+
+    if (
+      currentTool ===
+      "point"
+    ) {
+
+      ctx.fillStyle =
+        "#000";
+
+      ctx.beginPath();
+
+      ctx.arc(
+        pos.x,
+        pos.y,
+        3,
+        0,
+        Math.PI * 2
+      );
+
+      ctx.fill();
+
+      saveCostume();
+
+      return;
+    }
+
+    if (
+      currentTool ===
+      "text"
+    ) {
+
+      const value =
+        prompt(
+          "Enter text:"
+        );
+
+      if (value) {
+
+        ctx.fillStyle =
+          "#000";
+
+        ctx.font =
+          "24px Arial";
+
+        ctx.fillText(
+          value,
+          pos.x,
+          pos.y
+        );
+
+        saveCostume();
+      }
+
+      return;
+    }
+
+    if (
+      currentTool ===
+      "select"
+    ) {
+      return;
+    }
+
+    drawing = true;
+
+    canvas.setPointerCapture(
+      event.pointerId
+    );
+  }
+);
+
+
+canvas.addEventListener(
+  "pointermove",
+  function(event) {
+
+    if (!drawing) {
+      return;
+    }
+
+    const pos =
+      mousePosition(event);
+
+    if (
+      currentTool ===
+      "paint"
+    ) {
+
+      ctx.strokeStyle =
+        "#000";
+
+      ctx.lineWidth =
+        5;
+
+      ctx.lineCap =
+        "round";
+
+      ctx.beginPath();
+
+      ctx.moveTo(
+        lastX,
+        lastY
+      );
+
+      ctx.lineTo(
+        pos.x,
+        pos.y
+      );
+
+      ctx.stroke();
+
+      lastX = pos.x;
+      lastY = pos.y;
+    }
+
+    if (
+      currentTool ===
+      "erase"
+    ) {
+
+      ctx.save();
+
+      ctx.globalCompositeOperation =
+        "destination-out";
+
+      ctx.lineWidth =
+        20;
+
+      ctx.lineCap =
+        "round";
+
+      ctx.beginPath();
+
+      ctx.moveTo(
+        lastX,
+        lastY
+      );
+
+      ctx.lineTo(
+        pos.x,
+        pos.y
+      );
+
+      ctx.stroke();
+
+      ctx.restore();
+
+      lastX = pos.x;
+      lastY = pos.y;
+    }
+  }
+);
+
+
+canvas.addEventListener(
+  "pointerup",
+  function(event) {
+
+    if (!drawing) {
+      return;
+    }
+
+    drawing = false;
+
+    const pos =
+      mousePosition(event);
+
+    const x =
+      Math.min(
+        startX,
+        pos.x
+      );
+
+    const y =
+      Math.min(
+        startY,
+        pos.y
+      );
+
+    const width =
+      Math.abs(
+        pos.x - startX
+      );
+
+    const height =
+      Math.abs(
+        pos.y - startY
+      );
+
+    ctx.strokeStyle =
+      "#000";
+
+    ctx.lineWidth =
+      3;
+
+    if (
+      currentTool ===
+      "circle"
+    ) {
+
+      ctx.beginPath();
+
+      ctx.ellipse(
+        x + width / 2,
+        y + height / 2,
+        width / 2,
+        height / 2,
+        0,
+        0,
+        Math.PI * 2
+      );
+
+      ctx.stroke();
+    }
+
+    if (
+      currentTool ===
+      "square"
+    ) {
+
+      ctx.strokeRect(
+        x,
+        y,
+        width,
+        height
+      );
+    }
+
+    if (
+      currentTool ===
+      "triangle"
+    ) {
+
+      ctx.beginPath();
+
+      
