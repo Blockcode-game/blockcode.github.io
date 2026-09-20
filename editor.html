@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BlockCode Web IDE</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      display: grid;
+      grid-template-columns: 40% 60%;
+      grid-template-rows: auto 1fr;
+      height: 100vh;
+      background: #111;
+      color: #eee;
+    }
+
+    header {
+      grid-column: 1 / 3;
+      padding: 8px 16px;
+      background: #222;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+    }
+
+    #leftPane {
+      display: flex;
+      flex-direction: column;
+      border-right: 2px solid #333;
+    }
+
+    #palette {
+      padding: 8px;
+      background: #1b1b1b;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      border-bottom: 2px solid #333;
+      font-size: 12px;
+    }
+
+    .palette-block {
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: grab;
+      user-select: none;
+      color: #000;
+      font-weight: 600;
+    }
+
+    #workspace {
+      flex: 1;
+      position: relative;
+      background: #000;
+      overflow: auto;
+    }
+
+    .codely-block {
+      position: absolute;
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: grab;
+      user-select: none;
+      color: #000;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.6);
+    }
+
+    .codely-block.selected {
+      outline: 2px solid #fff;
+    }
+
+    #rightPane {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #tabs {
+      display: flex;
+      background: #222;
+    }
+
+    #tabs button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      background: #333;
+      color: #eee;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    #tabs button.active {
+      background: #ff9800;
+      color: #000;
+    }
+
+    .panel {
+      flex: 1;
+      display: none;
+      padding: 8px;
+      background: #000;
+    }
+
+    .panel.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #stageCanvas {
+      border: 2px solid #555;
+      background: #000;
+    }
+
+    #stageInfo {
+      font-size: 12px;
+      color: #aaa;
+      margin-top: 6px;
+    }
+
+    #costumesTools {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    #costumesCanvas {
+      border: 2px solid #555;
+      background: #111;
+      cursor: crosshair;
+    }
+
+    #soundsList {
+      flex: 1;
+      overflow-y: auto;
+      font-size: 13px;
+    }
+
+    #controlsBar {
+      padding: 6px 8px;
+      background: #222;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+    }
+
+    #controlsBar button {
+      padding: 6px 10px;
+      border: none;
+      background: #ff9800;
+      color: #000;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+
+    #codelyStatus {
+      margin-left: auto;
+      font-style: italic;
+      color: #9cf;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span>Codely Custom Block Game Engine</span>
+    <span id="codelyStatus">Checking for Codely repo…</span>
+  </header>
+
+  <!-- LEFT: CODELY ENGINE -->
+  <div id="leftPane">
+    <div id="palette"></div>
+    <div id="workspace"></div>
+    <div id="controlsBar">
+      <button id="runProgram">Run Game</button>
+      <button id="resetStage">Reset Stage</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: STAGE / COSTUMES / SOUNDS -->
+  <div id="rightPane">
+    <div id="tabs">
+      <button id="tabStage" class="active">Stage</button>
+      <button id="tabCostumes">Costumes</button>
+      <button id="tabSounds">Sounds</button>
+    </div>
+
+    <!-- Stage Panel -->
+    <div id="panelStage" class="panel active">
+      <canvas id="stageCanvas" width="320" height="240"></canvas>
+      <div id="stageInfo">Stage: Codely blocks control sprites, colors, movement, etc.</div>
+    </div>
+
+    <!-- Costumes Panel -->
+    <div id="panelCostumes" class="panel">
+      <div id="costumesTools">
+        <label>Brush size:
+          <input type="range" id="brushSize" min="1" max="20" value="5">
+        </label>
+        <label>Color:
+          <input type="color" id="brushColor" value="#ff0000">
+        </label>
+        <button id="clearCostume">Clear</button>
+        <label>
+          Import image:
+          <input type="file" id="costumeImageInput" accept="image/*">
+        </label>
+      </div>
+      <canvas id="costumesCanvas" width="320" height="240"></canvas>
+    </div>
+
+    <!-- Sounds Panel -->
+    <div id="panelSounds" class="panel">
+      <div id="controlsBar">
+        <label>
+          Add sound:
+          <input type="file" id="soundInput" accept="audio/*">
+        </label>
+        <button id="playAllSounds">Play all</button>
+      </div>
+      <div id="soundsList"></div>
+    </div>
+  </div>
+
+  <script>
+    // --- BASIC GAME STATE ---
+    const stageCanvas = document.getElementById('stageCanvas');
+    const stageCtx = stageCanvas.getContext('2d');
+
+    const gameState = {
+      sprites: [],
+      running: false
+    };
+
+    function resetStage() {
+      stageCtx.fillStyle = '#000';
+      stageCtx.fillRect(0, 0, stageCanvas.width, stageCanvas.height);
+      gameState.sprites = [];
+      gameState.running = false;
+    }
+
+    resetStage();
+
+    // --- CODELY BLOCK ENGINE CORE ---
+
+    // Block definitions: type, label, color, and an "op" function
+    const BLOCK_DEFS = [
+      {
+        type: 'event_start',
+        label: 'when game starts',
+        color: '#FFBF00',
+        op: async (ctx) => {
+          // This is a marker; engine starts executing from here
+        }
+      },
+      {
+        type: 'stage_clear',
+        label: 'clear stage',
+        color: '#9966FF',
+        op: (ctx) => {
+          stageCtx.fillStyle = '#000';
+          stageCtx.fillRect(0, 0, stageCanvas.width, stageCanvas.height);
+        }
+      },
+      {
+        type: 'stage_fill_blue',
+        label: 'fill stage blue',
+        color: '#9966FF',
+        op: (ctx) => {
+          stageCtx.fillStyle = '#0000ff';
+          stageCtx.fillRect(0, 0, stageCanvas.width, stageCanvas.height);
+        }
+      },
+      {
+        type: 'sprite_create',
+        label: 'create sprite at center',
+        color: '#4C97FF',
+        op: (ctx) => {
+          gameState.sprites.push({
+            x: stageCanvas.width / 2 - 10,
+            y: stageCanvas.height / 2 - 10,
+            color: '#ffffff',
+            size: 20
+          });
+        }
+      },
+      {
+        type: 'sprite_move_right',
+        label: 'move sprites right',
+        color: '#4C97FF',
+        op: (ctx) => {
+          gameState.sprites.forEach(s => { s.x += 10; });
+        }
+      },
+      {
+        type: 'sprite_set_red',
+        label: 'set sprites red',
+        color: '#FF6699',
+        op: (ctx) => {
+          gameState.sprites.forEach(s => { s.color = '#ff0000'; });
+        }
+      },
+      {
+        type: 'sound_play_all',
+        label: 'play all sounds',
+        color: '#00C853',
+        op: (ctx) => {
+          ctx.sounds.forEach(a => { a.currentTime = 0; a.play(); });
+        }
+      },
+      {
+        type: 'costume_stamp',
+        label: 'stamp costume onto stage',
+        color: '#FF6699',
+        op: (ctx) => {
+          const cc = document.getElementById('costumesCanvas');
+          stageCtx.drawImage(cc, 0, 0, stageCanvas.width, stageCanvas.height);
+        }
+      }
+      // 👉 Add more here until you hit 80+ blocks
+    ];
+
+    // Workspace model: blocks placed by user
+    const workspaceEl = document.getElementById('workspace');
+    const paletteEl = document.getElementById('palette');
+
+    const workspaceBlocks = []; // {id, type, x, y}
+
+    let dragState = null;
+
+    function createPalette() {
+      BLOCK_DEFS.forEach(def => {
+        const el = document.createElement('div');
+        el.className = 'palette-block';
+        el.textContent = def.label;
+        el.style.background = def.color;
+        el.dataset.type = def.type;
+
+        el.addEventListener('mousedown', (e) => {
+          const rect = workspaceEl.getBoundingClientRect();
+          const x = rect.left + 20;
+          const y = rect.top + 20;
+          spawnWorkspaceBlock(def.type, x, y);
+        });
+
+        paletteEl.appendChild(el);
+      });
+    }
+
+    function spawnWorkspaceBlock(type, x, y) {
+      const id = 'block_' + Math.random().toString(36).slice(2);
+      const def = BLOCK_DEFS.find(d => d.type === type);
+      if (!def) return;
+
+      const el = document.createElement('div');
+      el.className = 'codely-block';
+      el.textContent = def.label;
+      el.style.background = def.color;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.dataset.id = id;
+      el.dataset.type = type;
+
+      workspaceEl.appendChild(el);
+
+      workspaceBlocks.push({ id, type, x, y });
+
+      el.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const rect = workspaceEl.getBoundingClientRect();
+        dragState = {
+          id,
+          offsetX: e.clientX - rect.left - parseInt(el.style.left, 10),
+          offsetY: e.clientY - rect.top - parseInt(el.style.top, 10)
+        };
+        el.classList.add('selected');
+      });
+    }
+
+    workspaceEl.addEventListener('mousemove', (e) => {
+      if (!dragState) return;
+      const rect = workspaceEl.getBoundingClientRect();
+      const x = e.clientX - rect.left - dragState.offsetX;
+      const y = e.clientY - rect.top - dragState.offsetY;
+
+      const block = workspaceBlocks.find(b => b.id === dragState.id);
+      if (!block) return;
+      block.x = x;
+      block.y = y;
+
+      const el = [...workspaceEl.children].find(c => c.dataset.id === block.id);
+      if (el) {
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (!dragState) return;
+      const el = [...workspaceEl.children].find(c => c.dataset.id === dragState.id);
+      if (el) el.classList.remove('selected');
+      dragState = null;
+    });
+
+    createPalette();
+
+    // --- SIMPLE EXECUTION MODEL ---
+    // We treat blocks as a vertical program: sorted by y, then x.
+
+    function sortBlocksForExecution() {
+      return workspaceBlocks.slice().sort((a, b) => {
+        if (a.y === b.y) return a.x - b.x;
+        return a.y - b.y;
+      });
+    }
+
+    function renderSprites() {
+      stageCtx.fillStyle = '#000';
+      stageCtx.fillRect(0, 0, stageCanvas.width, stageCanvas.height);
+      gameState.sprites.forEach(s => {
+        stageCtx.fillStyle = s.color;
+        stageCtx.fillRect(s.x, s.y, s.size, s.size);
+      });
+    }
+
+    async function runProgram() {
+      resetStage();
+      const ordered = sortBlocksForExecution();
+      const ctx = { sounds };
+
+      for (const b of ordered) {
+        const def = BLOCK_DEFS.find(d => d.type === b.type);
+        if (!def || !def.op) continue;
+        await def.op(ctx);
+        renderSprites();
+      }
+    }
+
+    document.getElementById('runProgram').addEventListener('click', runProgram);
+    document.getElementById('resetStage').addEventListener('click', resetStage);
+
+    // --- COSTUMES DRAWING TOOLS ---
+    const costumesCanvas = document.getElementById('costumesCanvas');
+    const costumesCtx = costumesCanvas.getContext('2d');
+    let drawing = false;
+    let lastX = 0, lastY = 0;
+
+    function clearCostumeCanvas() {
+      costumesCtx.fillStyle = '#000';
+      costumesCtx.fillRect(0, 0, costumesCanvas.width, costumesCanvas.height);
+    }
+
+    clearCostumeCanvas();
+
+    costumesCanvas.addEventListener('mousedown', (e) => {
+      drawing = true;
+      const rect = costumesCanvas.getBoundingClientRect();
+      lastX = e.clientX - rect.left;
+      lastY = e.clientY - rect.top;
+    });
+
+    costumesCanvas.addEventListener('mousemove', (e) => {
+      if (!drawing) return;
+      const rect = costumesCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const size = parseInt(document.getElementById('brushSize').value, 10);
+      const color = document.getElementById('brushColor').value;
+
+      costumesCtx.strokeStyle = color;
+      costumesCtx.lineWidth = size;
+      costumesCtx.lineCap = 'round';
+
+      costumesCtx.beginPath();
+      costumesCtx.moveTo(lastX, lastY);
+      costumesCtx.lineTo(x, y);
+      costumesCtx.stroke();
+
+      lastX = x;
+      lastY = y;
+    });
+
+    window.addEventListener('mouseup', () => {
+      drawing = false;
+    });
+
+    document.getElementById('clearCostume').addEventListener('click', clearCostumeCanvas);
+
+    document.getElementById('costumeImageInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const img = new Image();
+      img.onload = () => {
+        costumesCtx.drawImage(img, 0, 0, costumesCanvas.width, costumesCanvas.height);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+
+    // --- SOUNDS TAB ---
+    const sounds = [];
+    const soundInput = document.getElementById('soundInput');
+    const soundsList = document.getElementById('soundsList');
+
+    soundInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      const audio = new Audio(url);
+      sounds.push(audio);
+
+      const idx = sounds.length - 1;
+      const item = document.createElement('div');
+      item.textContent = `Sound ${idx} – ${file.name}`;
+      const playBtn = document.createElement('button');
+      playBtn.textContent = 'Play';
+      playBtn.style.marginLeft = '8px';
+      playBtn.onclick = () => {
+        audio.currentTime = 0;
+        audio.play();
+      };
+      item.appendChild(playBtn);
+      soundsList.appendChild(item);
+    });
+
+    document.getElementById('playAllSounds').addEventListener('click', () => {
+      sounds.forEach(a => {
+        a.currentTime = 0;
+        a.play();
+      });
+    });
+
+    // --- TABS SWITCHING ---
+    function setActiveTab(tabId, panelId) {
+      ['tabStage', 'tabCostumes', 'tabSounds'].forEach(id => {
+        document.getElementById(id).classList.remove('active');
+      });
+      ['panelStage', 'panelCostumes', 'panelSounds'].forEach(id => {
+        document.getElementById(id).classList.remove('active');
+      });
+      document.getElementById(tabId).classList.add('active');
+      document.getElementById(panelId).classList.add('active');
+    }
+
+    document.getElementById('tabStage').onclick = () => setActiveTab('tabStage', 'panelStage');
+    document.getElementById('tabCostumes').onclick = () => setActiveTab('tabCostumes', 'panelCostumes');
+    document.getElementById('tabSounds').onclick = () => setActiveTab('tabSounds', 'panelSounds');
+
+    // --- "FETCHES IF IT SEES ANY REPO CALLED Codely" (stub) ---
+    async function checkCodelyRepo() {
+      const status = document.getElementById('codelyStatus');
+      try {
+        // Example: GitHub repo named "Codely" under some user/org.
+        const user = 'your-github-username';
+        const res = await fetch(`https://api.github.com/repos/${user}/Codely`);
+        if (res.ok) {
+          const data = await res.json();
+          status.textContent = 'Codely repo found – you can load block defs from it.';
+          window.CodelyRepo = data;
+          // You could fetch a JSON file from the repo and replace BLOCK_DEFS.
+        } else {
+          status.textContent = 'No Codely repo found – using built-in blocks.';
+        }
+      } catch (e) {
+        status.textContent = 'Codely check failed – offline or API blocked.';
+      }
+    }
+
+    checkCodelyRepo();
+  </script>
+</body>
+</html>
